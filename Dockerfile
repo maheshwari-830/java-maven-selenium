@@ -1,35 +1,30 @@
-# Use Maven image to build the project
-FROM maven:3.8.8-eclipse-temurin-17 AS builder
+# Stage 1: Build and test using Maven
+FROM maven:3.8.8-eclipse-temurin-17 as builder
+
+# Set working directory
+WORKDIR /usr/src/app
+
+# Copy the source code
+COPY . .
+
+# Install dependencies and run tests
+# Tests assume Chrome is available (installed below)
+RUN apt-get update && \
+    apt-get install -y wget unzip curl gnupg && \
+    curl -sSL https://dl.google.com/linux/linux_signing_key.pub | apt-key add - && \
+    echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list && \
+    apt-get update && \
+    apt-get install -y google-chrome-stable && \
+    mvn clean verify
+
+# Stage 2: Optional runtime container (for compiled app or test reports)
+FROM eclipse-temurin:17-jdk
 
 # Set working directory
 WORKDIR /app
 
-# Copy all files
-COPY . .
+# Copy test reports or compiled artifacts if needed
+COPY --from=builder /usr/src/app/target /app/target
 
-# Build the application (you can change `clean install` to another Maven goal)
-RUN mvn clean install
-
-# -------------------------------------------------------------------
-# Optional: Run tests in Docker (with headless browser support)
-# -------------------------------------------------------------------
-# You can extend this step to install browsers like Chromium if needed
-# For example, for headless Chrome testing
-
-# FROM selenium/standalone-chrome as tester (if using selenium container)
-
-# Or continue with this image for simple Java-based tests
-
-# Final image to run your app or tests (if needed)
-FROM eclipse-temurin:17-jdk
-
-WORKDIR /app
-
-# Copy compiled code from the builder
-COPY --from=builder /app/target /app/target
-
-# Copy test reports if needed
-# COPY --from=builder /app/target/surefire-reports /app/reports
-
-# Set the default command to run tests or your app
-CMD ["java", "-jar", "/app/target/your-app-name.jar"]
+# Default command (e.g., to view test reports or run app if applicable)
+CMD ["ls", "-l", "/app/target"]
